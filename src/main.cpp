@@ -59,8 +59,6 @@ int main(int argc, char *argv[])
     eigenSolverGCG(matA, matB, eigenvalue, eigenvector, &gcgeparam, ops);
     
     // 6、特征值和特征向量结果写入txt文件
-    std::vector<double> eigenvalue1;
-    std::vector<std::vector<double>> eigenvector1;
     eigenResultSave(eigenvalue, eigenvector);
 
     // 7、销毁工作空间
