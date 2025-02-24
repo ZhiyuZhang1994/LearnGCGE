@@ -1,7 +1,7 @@
 ### 一、GCGE配置编译
 
-#### 1.windows系统
-##### 1. 下载外部依赖包
+#### 1、Windows系统
+##### 1.1 下载外部依赖包
 GCGE当前依赖的外部包如下：
 - mingw-w64-x86_64-msmpi 10.1.1-11
 - mingw-w64-x86_64-openblas 0.3.28-1
@@ -9,7 +9,7 @@ GCGE当前依赖的外部包如下：
 
 windows平台下msys2环境：采用`pacman -S mingw-w64-x86_64-msmpi 10.1.1-11`进行安装，其他包类似
 
-##### 2. 编译
+##### 1.2 编译
 ```bash
 cd LearnGCGE
 mkdir build
@@ -18,7 +18,7 @@ cmake ..
 make 
 ```
 
-##### 3. 配置编译过程遇见的问题
+##### 1.3 配置编译过程遇见的问题
 编译时不能链接libgomp.a和libmingwthrd.a
 
 --原因：测试用电脑已安装有mingw64(并设置系统变量)
@@ -26,14 +26,14 @@ make
 --措施：卸载已有的mingw64，重新按上述流程编译
 
 
-#### 2.ubuntu18.04系统
-##### 1. 下载外部依赖包
+#### 2、Ubuntu18.04系统
+##### 2.1 下载外部依赖包
 - sudo apt install build-essential openssl libssl-dev 
 - 下载编译安装 cmake-3.16.5
 - 下载编译安装 OpenBLAS-0.3.24    
 - 下载编译安装 mpich-4.2.3
 
-##### 2. 编译
+##### 2.2 编译
 ```bash
 cd LearnGCGE
 mkdir build
@@ -42,7 +42,7 @@ cmake ..
 make 
 ```
 
-##### 3. 配置编译过程遇见的问题
+##### 2.3 配置编译过程遇见的问题
 1.当cmake..时，find_package(OpenBLAS REQUIRED)失败
 
 --原因：使用sudo apt install libopenblas-dev安装了低版本openblas
@@ -77,7 +77,7 @@ make
 ./test.exe K.mtx M.mtx
 ```
 
-#### 3. 运行过程遇见的问题
+#### 3、运行过程遇见的问题
 1.windows系统运行时,不能使用mpiexec命令
 
 --原因：mingw-w64-x86_64-msmpi安装包的部分版本不含msmpi
