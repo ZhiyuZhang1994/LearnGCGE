@@ -26,10 +26,10 @@ make
 
 #### 2.ubuntu18.04系统
 ##### 1. 下载外部依赖包
-sudo apt install build-essential openssl libssl-dev (新系统需要的一些基础包)
-下载编译安装 cmake-3.16.5
-下载编译安装 OpenBLAS-0.3.24    
-下载编译安装 mpich-4.2.3
+- sudo apt install build-essential openssl libssl-dev 
+- 下载编译安装 cmake-3.16.5
+- 下载编译安装 OpenBLAS-0.3.24    
+- 下载编译安装 mpich-4.2.3
 
 ##### 2. 编译
 ```bash
@@ -42,12 +42,16 @@ make
 
 ##### 3. 配置编译过程遇见的问题
 1.当cmake..时，find_package(OpenBLAS REQUIRED)失败
+
 --原因：使用sudo apt install libopenblas-dev安装了低版本openblas
+
 --措施：下载编译安装 OpenBLAS-0.3.24 
 
 
 2.当make时，出现"error: conflicting declaration of C function 'void MPI::Init(int&, char**&)' extern void Init(int&, char**&);"
+
 --原因：使用sudo apt install openmpi-bin libopenmpi-dev安装了低版本openmpi
+
 --措施：下载编译安装 mpich-4.2.3
 
 
@@ -73,10 +77,13 @@ make
 
 #### 3. 运行过程遇见的问题
 1.windows系统运行时,不能使用mpiexec命令
+
 --原因：mingw-w64-x86_64-msmpi安装包的部分版本不含msmpi
+
 --措施：在windows系统下载安装msmpisetup.exe
 
 2.ubuntu系统运行时,出现"OpenBLAS Warning : Detect OpenMP Loop and this application may hang. Please rebuild the library with USE_OPENMP=1 option"
+
 --措施：export OMP_NUM_THREADS=1
 
 # GCGE文件结构
