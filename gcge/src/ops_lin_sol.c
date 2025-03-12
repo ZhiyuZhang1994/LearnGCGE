@@ -237,7 +237,8 @@ void BlockPCG(void *mat, void **mv_b, void **mv_x,
     end[0] = end_bx[0];
     start[1] = 0;
     end[1] = num_unconv;
-    // 对于未受敛的向量，计算r = b - A*x.这里mv_r存的是上面调用默认的MatDotMultiVec函数记算出来的A*x
+    //TODO 上面如果调用的是bpcg->MatDotMultiVec？
+    // 对于未受敛的向量，计算r = b - r.这里mv_r存的是上面调用默认的MatDotMultiVec函数记算出来的A*x
     ops->MultiVecAxpby(1.0, mv_b, -1.0, mv_r, start, end, ops);
 #if TIME_BPCG
     time_bpcg.axpby_time += ops->GetWtime();
