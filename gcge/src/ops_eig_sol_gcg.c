@@ -272,7 +272,7 @@ static void ComputeRitzVec(void **ritz_vec, void **V, double *ss_evec, double *s
  * @return int 返回已经收敛的特征值个数(包含前期已经收敛的个数)
  */
 static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
-                            int numCheck, double *tol, int *offset, int* range_nevConv) {
+                            int numCheck, double *tol, int *offset, int *range_nevConv) {
     // ss_eval偏移以和ritz_vec对齐，使用结束后恢复
     ss_eval += closeToTargetEvalIndex;
 
@@ -349,7 +349,7 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
     // 计算当前收敛的特征值总个数
     nevConv = sizeC + idx;
     // 区间特征值收敛个数
-    for (int i = idx; i > 0 ; --i) {
+    for (int i = idx; i > 0; --i) {
         if (ss_eval[startN + idx - 1] > gcg_solver->min_eigenvalue && ss_eval[startN + idx - 1] < gcg_solver->max_eigenvalue) {
             ++range_nevConv;
         }
@@ -1104,7 +1104,7 @@ static void ComputeW12(void **V, void *A, void *B,
 
 #if DEBUG
     ops_gcg->Printf("V\n");
-        ops_gcg->MultiVecView(V, startW, endW, ops_gcg);
+    ops_gcg->MultiVecView(V, startW, endW, ops_gcg);
 #endif
 
     /* orth W in V */
@@ -1313,21 +1313,21 @@ static void ComputeRayleighRitz(double *ss_matA, double *ss_eval, double *ss_eve
 #endif
     /* 基于LAPACK计算小规模特征值问题的参数设置 */
     char JOBZ, RANGE, UPLO;
-    int LDA; // 数组A的首维长度
-    int M; // 输出变量：找到的特征值总数
+    int LDA;       // 数组A的首维长度
+    int M;         // 输出变量：找到的特征值总数
     int LDZ, INFO; // // 特征向量矩阵 Z 的首维，通常等于 N;  INFO: 返回值，检查计算是否成功
-    int N; // 矩阵的阶数(行数/列数)
-    int LWORK; // WORK 数组的大小，决定了计算是否足够高效
-    int *IWORK; // 整数工作区
-    int *IFAIL; // 记录计算失败的特征值索引
+    int N;         // 矩阵的阶数(行数/列数)
+    int LWORK;     // WORK 数组的大小，决定了计算是否足够高效
+    int *IWORK;    // 整数工作区
+    int *IFAIL;    // 记录计算失败的特征值索引
     double ABSTOL; // 特征值的绝对误差容限
-    double *AA; // 输入矩阵A
-    double *W;  // 输出变量：前 M 个元素包含按升序排列的选中特征值
-    double *Z;  // 输出变量：前 M 列包含对应于选中特征值的正交特征向量
-    double *WORK; // 工作空间，用于临时存储计算数据
-    JOBZ = 'V';          // 表示计算特征值和特征向量
-    RANGE = 'A';         // 表示计算所有特征值
-    UPLO = 'U';          // 表示存储上三角部分
+    double *AA;    // 输入矩阵A
+    double *W;     // 输出变量：前 M 个元素包含按升序排列的选中特征值
+    double *Z;     // 输出变量：前 M 列包含对应于选中特征值的正交特征向量
+    double *WORK;  // 工作空间，用于临时存储计算数据
+    JOBZ = 'V';    // 表示计算特征值和特征向量
+    RANGE = 'A';   // 表示计算所有特征值
+    UPLO = 'U';    // 表示存储上三角部分
     LDA = sizeV - sizeC;
     ABSTOL = tol;
     LDZ = sizeV - sizeC;
