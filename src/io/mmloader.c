@@ -2,9 +2,13 @@
 PetscErrorCode MatCreateFromMTX(Mat *A, const char *filein, PetscBool aijonly) {
     MM_typecode matcode;
     FILE *file;
+    // M: 行数, N: 列数
     PetscInt M, N, ninput;
+    // ia: 行索引数组, ja: 列索引数组, val: 非零元素数组
     PetscInt *ia, *ja;
+    // nz: 非零元素数, ownz: 每行的非零元素数
     PetscInt i, j, nz, *rownz;
+    // val: 非零元素数组
     PetscScalar *val;
     PetscBool sametype, symmetric = PETSC_FALSE, skew = PETSC_FALSE;
 
@@ -51,32 +55,29 @@ PetscErrorCode MatCreateFromMTX(Mat *A, const char *filein, PetscBool aijonly) {
     PetscCall(MatSetSizes(*A, PETSC_DECIDE, PETSC_DECIDE, M, N));
 
     if (symmetric && !aijonly) {
+        // MATSEQSBAIJ或MATMPISBAIJ 设置后，只需要填充将上三角矩阵，petsc自动补齐下三角矩阵
         PetscCall(MatSetType(*A, MATSEQSBAIJ));
         PetscCall(MatSetFromOptions(*A));
+        /**
+         * @brief 为 MPI 对称块对角稀疏矩阵（MPI Symmetric Block AIJ Matrix） 预分配内存
+         * @param Mat 要预分配内存的矩阵对象
+         * @param bs 块大小（Block Size），即矩阵的每个块的行数和列数。
+         * @param PetscInt 对角块每行的非零块数的估计值。如果不知道具体值，可以传入 PETSC_DEFAULT
+         * @param const PetscInt[] 对角块每行的非零块数的精确数组。如果不知道具体值，可以传入 NULL。
+         * @param PetscInt 非对角块每行的非零块数的估计值。如果不知道具体值，可以传入 PETSC_DEFAULT。
+         * @param const PetscInt[] 非对角块每行的非零块数的精确数组。如果不知道具体值，可以传入 NULL。
+         * 
+         */
+        // PetscCall(MatMPISBAIJSetPreallocation (*A, 1, PETSC_DEFAULT, NULL, PETSC_DEFAULT, NULL));
         PetscCall(MatSeqSBAIJSetPreallocation(*A, 1, 0, rownz));
         PetscCall(PetscObjectTypeCompare((PetscObject)*A, MATSEQSBAIJ, &sametype));
         PetscCheck(sametype, PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Only AIJ and SBAIJ are supported. Your mattype is not supported");
-    } else {
-        PetscCall(MatSetType(*A, MATSEQAIJ));
-        PetscCall(MatSetFromOptions(*A));
-        PetscCall(MatSeqAIJSetPreallocation(*A, 0, rownz));
-        PetscCall(PetscObjectTypeCompare((PetscObject)*A, MATSEQAIJ, &sametype));
-        PetscCheck(sametype, PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Only AIJ and SBAIJ are supported. Your mattype is not supported");
     }
-    /* Add values to the matrix, these correspond to lower triangular part for symmetric or skew matrices */
-    if (!(symmetric && !aijonly))
-        for (j = 0; j < nz; j++) PetscCall(MatSetValues(*A, 1, &ia[j], 1, &ja[j], &val[j], INSERT_VALUES));
-
     /* Add values to upper triangular part for some cases */
     if (symmetric && !aijonly) {
+        printf("zzy2 symmetric: %d, aijonly: %d\n", symmetric, aijonly);
         /* MatrixMarket matrix stores symm matrix in lower triangular part. Take its transpose */
         for (j = 0; j < nz; j++) PetscCall(MatSetValues(*A, 1, &ja[j], 1, &ia[j], &val[j], INSERT_VALUES));
-    }
-    if (skew) {
-        for (j = 0; j < nz; j++) {
-            val[j] = -val[j];
-            PetscCall(MatSetValues(*A, 1, &ja[j], 1, &ia[j], &val[j], INSERT_VALUES));
-        }
     }
     PetscCall(MatAssemblyBegin(*A, MAT_FINAL_ASSEMBLY));
     PetscCall(MatAssemblyEnd(*A, MAT_FINAL_ASSEMBLY));
