@@ -114,6 +114,11 @@ static void MultiVecCreateByMat(BV *des_bv, int num_vec, Mat src_mat, struct OPS
     return;
 }
 
+// 测试包装函数，供单元测试调用
+void Testable_MultiVecCreateByMat(BV *des_bv, int num_vec, Mat src_mat, struct OPS_ *ops) {
+    MultiVecCreateByMat(des_bv, num_vec, src_mat, ops);
+}
+
 /**
  * @brief 析构多维向量
  * 

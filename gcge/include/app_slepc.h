@@ -9,27 +9,26 @@
  *       Created:  2020/9/13
  *      Revision:  none
  */
-#ifndef  _APP_SLEPC_H_
-#define  _APP_SLEPC_H_
+#ifndef _APP_SLEPC_H_
+#define _APP_SLEPC_H_
 
-#include	"ops.h"
-#include	"app_lapack.h"
+#include "app_lapack.h"
+#include "ops.h"
 
 #if OPS_USE_SLEPC
 
-#include	<petscoptions.h>
-#include	<petscviewer.h>
-#include	<petscsys.h>
-#include	<petscmat.h>
-#include	<petscvec.h>
-#include	<petscksp.h>
-#include	<petscpc.h>
-#include	<slepcbv.h>
+#include <petscksp.h>
+#include <petscmat.h>
+#include <petscoptions.h>
+#include <petscpc.h>
+#include <petscsys.h>
+#include <petscvec.h>
+#include <petscviewer.h>
+#include <slepcbv.h>
 
-void OPS_SLEPC_Set (struct OPS_ *ops);
+void OPS_SLEPC_Set(struct OPS_ *ops);
+void Testable_MultiVecCreateByMat(BV *des_bv, int num_vec, Mat src_mat, struct OPS_ *ops);
 
 #endif
 
-#endif  /* -- #ifndef _APP_SLEPC_H_ -- */
-
-
+#endif /* -- #ifndef _APP_SLEPC_H_ -- */
