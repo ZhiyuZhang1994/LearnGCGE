@@ -130,7 +130,7 @@ static void MatDotMultiVecShift(void **x, void **y,
 /**
  * @brief 该函数的主要目的是初始化矩阵V的X部分，并确保其X部分的列向量关于矩阵 B 正交。通过以下步骤实现：
  * 1) 对给定的近似特征向量初始化部分列。
- * 2) 对初始化的列进行正交化。
+ * 2) 对已经收敛的列进行正交化。
  * 3) 对剩余列进行随机初始化并正交化。
  * 4) 确保最终生成的列数满足要求。
  * @param V 输入：要初始化的矩阵; 输出：矩阵X部分已完成随机初始化
@@ -192,6 +192,9 @@ static void InitializeX(void **V, void **ritz_vec, void *B, int nevGiven) {
     // 从nevGiven列开始对V进行B-正交化
     ops_gcg->MultiVecOrth(V, nevGiven, &endX, B, ops_gcg);
     assert(endX == sizeX);
+    if (endX < sizeX) {
+        ops_gcg->Printf("    not all vec orthed");
+    }
     /* 多次正交化, 保证有 sizeX 个正交向量 */
     // int pre_endX;
     // while (endX < sizeX) {
@@ -364,6 +367,57 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
     }
     printf("    idx: %d, nevConv: %d, range_nevConv: %d\n", idx, nevConv, *range_nevConv);
 
+    // ##############################################马丁修改：计算区间内收敛个数及收敛特征值索引 start###########################################
+    // 收敛且特征值在[a, b]区间内的数目     
+    int curConvNum = 0;                      
+    for (idx = 0; idx < numCheck; ++idx) {                           
+        if (ss_eval[startN + idx] >= gcg_solver->min_eigenvalue && ss_eval[startN + idx] <= gcg_solver->max_eigenvalue) {    
+            // 特征值在区间范围内
+            if (inner_prod[idx] < tol[0] || inner_prod[idx] < ss_eval[startN + idx] * tol[1]) {
+                // 绝对残量 和 相对残量 分别小于 tol[0] 或 tol[1] 
+                curConvNum++;
+            }
+        }
+    }
+
+    // 收敛且特征值在[a, b]区间内的索引
+    int *curConvInd = malloc((curConvNum + 1) * sizeof(int));   // [索引总数, 索引1, 索引2, ...]
+    int indexI = 0;  // 数组下标
+    curConvInd[indexI++] = curConvNum; // 索引总数
+    if (curConvNum > 0) {   // 存在符合要求的收敛特征值
+        for (idx = 0; idx < numCheck; ++idx) {                           
+            if (ss_eval[startN + idx] >= gcg_solver->min_eigenvalue && ss_eval[startN + idx] <= gcg_solver->max_eigenvalue) {    
+                // 特征值在区间范围内
+                if (inner_prod[idx] < tol[0] || inner_prod[idx] < ss_eval[startN + idx] * tol[1]) {
+                    // 绝对残量 和 相对残量 分别小于 tol[0] 或 tol[1] 
+                    curConvInd[indexI++] = idx;
+                }
+            }
+        }
+    }
+
+    // ##############################################张智禹修改：将收敛的特征对放在ss_eval、ss_evec、ritz_vec的最前面 start#######################
+    // 收敛性检查完成，恢复ss_eval地址
+    ss_eval -= closeToTargetEvalIndex;
+
+    // 将收敛的特征对放在ss_eval、ss_evec、ritz_vec的最前面
+    // 0、马丁将收敛的个数、收敛下标输出
+    int numConv = 8; // 收敛个数: 假定8个收敛
+    int indexConvs[8] = {0, 5, 6, 8, 12, 15, 16, 19}; // 收敛的下标索引数组
+    // 1、先处理eval: 将收敛的与最前面未收敛的交换位置
+    for (int i = 0; i < numConv; ++i) {
+        int tempEval = ss_eval[startN + i]; // 最前面未收敛的特征值
+        ss_eval[startN + i] = ss_eval[startN + closeToTargetEvalIndex + indexConvs[i]]; // 将收敛的特征值放在最前面
+        ss_eval[startN + closeToTargetEvalIndex + indexConvs[i]] = tempEval;
+    }
+    // 2、再处理evec: 将收敛的与最前面未收敛的交换位置
+    for (int i = 0; i < numConv; ++i) {
+
+    }
+
+
+    // 释放资源
+    free(curConvInd);
     // offset[0]：记录未收敛区间的个数
     // offset[2n+1] 和 offset[2n+2]：分别表示第 n 个未收敛区间的起始和结束位置，0 <= n < offset[0]。
     // offset[2n+1] <= idx < offset[2n+2]中 idx 是不收敛的标号
@@ -432,8 +486,7 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
     // 需要存在未收敛区间
     assert(offset[0] > 0);
 
-    // ss_eval偏移以和ritz_vec对齐，使用结束后恢复
-    ss_eval -= closeToTargetEvalIndex;
+
     return nevConv;
 }
 
@@ -1763,7 +1816,7 @@ static void GCG(void *A, void *B, double *eval, void **evec,
         if (numIter <= 0) {
             numCheck = 0;
         } else {
-            numCheck = (startN + sizeN < endX) ? (sizeN) : (endX - startN);
+            numCheck = (endX - startN);
         }
         numCheck = numCheck < gcg_solver->check_conv_max_num ? numCheck : gcg_solver->check_conv_max_num;
 
