@@ -865,7 +865,7 @@ static void ComputeW(void **V, void *A, void *B,
         int i;
 #if 1
         // Step 2: b = (lambda+sigma) Bx
-        // 论文中b = (lambda - sigma) Bx，是否有影响?
+        // 论文中b = (lambda - sigma) Bx，是否有影响? 正负号可能和sigma的公式有关，待调研
         /* shift eigenvalues with sigma */
         // if (gcg_solver->extract_type == GCGE_BY_ORDER) {
         //     for (i = start[0]; i < end[0]; ++i) {
@@ -919,7 +919,7 @@ static void ComputeW(void **V, void *A, void *B,
 #endif
         // destin存放变化的特征值，一次for循环，偏移一次存储数据所占的位置
         destin += length;
-        block_size += length;
+        block_size += length; // 最终block_size为未受敛特征向量总数
 #if DEBUG
         ops_gcg->Printf("initial b:\n");
         ops_gcg->MultiVecView(b, start[1], end[1], ops_gcg);
@@ -937,6 +937,7 @@ static void ComputeW(void **V, void *A, void *B,
 #if TIME_GCG
     time_gcg.linsol_time -= ops_gcg->GetWtime();
 #endif
+    // 整个过程中都没有用到lin_sol和ws这两个变量
     void (*lin_sol)(void *, void **, void **, int *, int *, struct OPS_ *); // 冗余操作？ 作为中间变量对 ops_gcg->MultiLinearSolver 进行了一次备份和恢复
     void *ws;
     lin_sol = ops_gcg->MultiLinearSolver;        // 冗余操作？
@@ -955,7 +956,7 @@ static void ComputeW(void **V, void *A, void *B,
         if (sigma != 0.0 && B != NULL && ops_gcg->MatAxpby != NULL) {
             ops_gcg->MatAxpby(-sigma, B, 1.0, A, ops_gcg); // 构造线性方程组系数矩阵  /* 20210628 A = sigma B + A */
             // 没有给预条件，给了预条件会不会收敛更快?
-            MultiLinearSolverSetup_BlockPCG(
+            MultiLinearSolverSetup_BlockPCG( // 线性方程求解器初始化
                 gcg_solver->compW_cg_max_iter,
                 gcg_solver->compW_cg_rate,
                 gcg_solver->compW_cg_tol,
@@ -968,7 +969,7 @@ static void ComputeW(void **V, void *A, void *B,
                 gcg_solver->compW_cg_rate,
                 gcg_solver->compW_cg_tol,
                 gcg_solver->compW_cg_tol_type,
-                mv_ws, dbl_ws, int_ws, NULL, MatDotMultiVecShift, ops_gcg);
+                mv_ws, dbl_ws, int_ws, NULL, MatDotMultiVecShift, ops_gcg); // 如果没有传入B或sigma就通过MatDotMultiVecShift进行A的移位计算。可能主要是考虑到ops_gcg->MatAxpby为空的情况
 #if 1
         }
 #endif
@@ -1065,6 +1066,7 @@ static void ComputeW(void **V, void *A, void *B,
     ops_gcg->MultiVecView(V, startW, endW, ops_gcg);
 #endif
     /* orth W in V */
+    // 正交化方法的初始化。默认为标准GramSchmidt正交化
     if (0 == strcmp("mgs", gcg_solver->compW_orth_method))
         MultiVecOrthSetup_ModifiedGramSchmidt(
             gcg_solver->compW_orth_block_size,
@@ -1085,7 +1087,7 @@ static void ComputeW(void **V, void *A, void *B,
             mv_ws[0], dbl_ws, ops_gcg);
 
     // W对B进行正交化
-    ops_gcg->MultiVecOrth(V, startW, &endW, B, ops_gcg);
+    ops_gcg->MultiVecOrth(V, startW, &endW, B, ops_gcg); //对V中所有元素进行B正交化 //TODO 为什么W没有和X，P部分正交
 #if DEBUG
     ops_gcg->Printf("Orth W in V, %d, %d\n", startW, endW);
     ops_gcg->MultiVecView(V, startW, endW, ops_gcg);
@@ -1104,7 +1106,7 @@ static void ComputeW(void **V, void *A, void *B,
     }
 #endif
     // W长度为正交的长度
-    sizeW = endW - startW;
+    sizeW = endW - startW; // !=block_size 正交化之后可能会有线性相关的向量，会变少
 
 #if 0	
 	if (sizeW<block_size) {
@@ -1873,14 +1875,14 @@ static void GCG(void *A, void *B, double *eval, void **evec,
     // 标定各个数组在内存空间的起始位置
     ss_eval = gcg_solver->dbl_ws;
     // 特征值初始化
-    for (idx = 0; idx < (nevMax + 2 * block_size); ++idx) {
-        ss_eval[idx] = 1.0; // 咱们领域有部分问题特征值起始值为0，是否设置为从0开始，另外这个初始化的作用是什么?
+    for (idx = 0; idx < (nevMax + 2 * block_size); ++idx) { // 特征值最多要求(nevMax + 2 * block_size)这么多个
+        ss_eval[idx] = 1.0;                                 // 咱们领域有部分问题特征值起始值为0，是否设置为从0开始，另外这个初始化的作用是什么?
     }
     ss_diag = ss_eval + (nevMax + 2 * block_size);
-    ss_matA = ss_diag + (sizeV - sizeC);
+    ss_matA = ss_diag + (sizeV - sizeC); // 子问题的大小
     ss_evec = ss_matA + (sizeV - sizeC) * (sizeV - sizeC);
 
-    // 最大占用的double类型内存空间大小
+    // 最大占用的double类型内存空间大小（前面已经使用了的，例如子空间的特征值计算等等）
     int distance = (nevMax + 2 * block_size)                                 /* ss_eval */
                    + (nevInit + 2 * block_size)                              /* ss_diag */
                    + (nevInit + 2 * block_size) * (nevInit + 2 * block_size) /* ss_matA */
