@@ -311,7 +311,7 @@ typedef struct OPS_ {
 	* 
 	* @param[in]     x      输入矩阵/向量，LAPACKVEC结构指针，NULL表示不参与计算
 	* @param[in,out] y      输入输出矩阵/向量，LAPACKVEC结构指针，存储计算结果
-	* @param[in]     is_vec 保留参数
+	* @param[in]     is_vec 向量模式标志位（0-矩阵模式，1-向量模式）
 	* @param[in]     start  二维起始坐标数组，start[0]为x向量的起始列，start[1]为y向量的起始列
 	* @param[in]     end    二维结束坐标数组，end[0]为x向量的结束列，end[1]为y向量的结束列
 	* @param[in]     coef   系数矩阵指针，与x矩阵相乘的系数
