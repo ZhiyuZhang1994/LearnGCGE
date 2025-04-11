@@ -3,24 +3,20 @@
 
 #include <slepcbv.h>
 
-extern "C"
-{
+extern "C" {
 #include "../gcge/include/app_slepc.h"
 #include "../gcge/include/ops.h"
 }
 struct OPS_ dummy_ops = {};
 
-class MultiVecCreateTest : public ::testing::Test
-{
+class MultiVecCreateTest : public ::testing::Test {
 protected:
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         PetscFinalize();
     }
 };
 
-TEST_F(MultiVecCreateTest, CreateBVFromMatrix)
-{
+TEST_F(MultiVecCreateTest, CreateBVFromMatrix) {
     BV bv = nullptr;
     int num_vec = 3;
 
@@ -46,8 +42,7 @@ TEST_F(MultiVecCreateTest, CreateBVFromMatrix)
     MatDestroy(&testMat);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 #if OPS_USE_SLEPC
     SlepcInitialize(&argc, &argv, NULL, NULL);
 #elif OPS_USE_PETSC

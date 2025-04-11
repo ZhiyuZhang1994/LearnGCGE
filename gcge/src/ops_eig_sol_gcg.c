@@ -866,6 +866,7 @@ static void ComputeW(void **V, void *A, void *B,
 #if 1
         // Step 2: b = (lambda+sigma) Bx
         // 论文中b = (lambda - sigma) Bx，是否有影响? 正负号可能和sigma的公式有关，待调研
+        // 论文中b = (lambda - sigma) Bx，是否有影响? 正负号可能和sigma的公式有关，待调研
         /* shift eigenvalues with sigma */
         // if (gcg_solver->extract_type == GCGE_BY_ORDER) {
         //     for (i = start[0]; i < end[0]; ++i) {
@@ -969,6 +970,7 @@ static void ComputeW(void **V, void *A, void *B,
                 gcg_solver->compW_cg_rate,
                 gcg_solver->compW_cg_tol,
                 gcg_solver->compW_cg_tol_type,
+                mv_ws, dbl_ws, int_ws, NULL, MatDotMultiVecShift, ops_gcg); // 如果没有传入B或sigma就通过MatDotMultiVecShift进行A的移位计算。可能主要是考虑到ops_gcg->MatAxpby为空的情况
                 mv_ws, dbl_ws, int_ws, NULL, MatDotMultiVecShift, ops_gcg); // 如果没有传入B或sigma就通过MatDotMultiVecShift进行A的移位计算。可能主要是考虑到ops_gcg->MatAxpby为空的情况
 #if 1
         }
