@@ -16,6 +16,6 @@ minFreq: 1
 maxFreq: 1000
 maxIteration: 300
 absoluteError: 0.01
-relativeError: 0.001
+relativeError: 0.01
 initBlock: 20
 pWBlock: 10
