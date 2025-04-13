@@ -380,8 +380,6 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec, 
     end[0] = start[0] + numCheck;
     start[1] = 0;
     end[1] = numCheck;
-    // todo: mv_ws[0] 内存空间只有blocksize大小，当numCheck为2 * blocksize时，存在问题
-    //       修改mv_ws[0] 内存空间大小后，computeP出现问题
     // 计算A * ritz_vec
     int x_nrowslocal, x_nrows, x_ncols;
     BVGetSizes((BV)ritz_vec, &x_nrowslocal, &x_nrows, &x_ncols);
@@ -1125,255 +1123,6 @@ static void ComputeW(void **V, void *A, void *B,
     return;
 }
 
-// 据反馈为一次无效的改进，可以忽略。
-// for linear response eigenvalue problems
-static void ComputeW12(void **V, void *A, void *B,
-                       double *ss_eval, void **ritz_vec, int *offset) {
-#if TIME_GCG
-    time_gcg.compW_time -= ops_gcg->GetWtime();
-#endif
-    assert(gcg_solver->user_defined_multi_linear_solver == 0);
-    void **b = ritz_vec;
-    int start[2], end[2], block_size, length, inc, idx;
-    double *destin = dbl_ws;
-
-    double sigma = 0.0;
-    if (gcg_solver->compW_cg_auto_shift == 1) {
-        sigma = -ss_eval[sizeC] + ((ss_eval[sizeC + 1] - ss_eval[sizeC]) * 0.01);
-#if 0
-		if (sizeC<3)
-			sigma = -ss_eval[sizeC]+(3*(ss_eval[1]-ss_eval[0])>1?3*(ss_eval[1]-ss_eval[0]):1);
-		else 
-			sigma = -ss_eval[sizeC]+((ss_eval[sizeC]-ss_eval[sizeC-3])>1?(ss_eval[sizeC]-ss_eval[sizeC-3]):1);
-#endif
-    }
-    gcg_solver->sigma = gcg_solver->compW_cg_shift + sigma;
-    sigma = gcg_solver->sigma;
-#if DEBUG
-    ops_gcg->Printf("ss_eval[0] = %e, sigma = %e\n", ss_eval[0], gcg_solver->compW_cg_shift);
-#endif
-
-    void (*lin_sol)(void *, void **, void **, int *, int *, struct OPS_ *);
-    void *ws;
-    lin_sol = ops_gcg->MultiLinearSolver;
-    ws = ops_gcg->multi_linear_solver_workspace;
-
-    /* 20210628 A = sigma B + A */
-    if (sigma != 0.0 && B != NULL && ops_gcg->MatAxpby != NULL) {
-        ops_gcg->MatAxpby(sigma, B, 1.0, A, ops_gcg);
-        MultiLinearSolverSetup_BlockPCG(
-            gcg_solver->compW_cg_max_iter,
-            gcg_solver->compW_cg_rate,
-            gcg_solver->compW_cg_tol,
-            gcg_solver->compW_cg_tol_type,
-            mv_ws, dbl_ws, int_ws, NULL, NULL, ops_gcg);
-    } else {
-        MultiLinearSolverSetup_BlockPCG(
-            gcg_solver->compW_cg_max_iter,
-            gcg_solver->compW_cg_rate,
-            gcg_solver->compW_cg_tol,
-            gcg_solver->compW_cg_tol_type,
-            mv_ws, dbl_ws, int_ws, NULL, MatDotMultiVecShift, ops_gcg);
-    }
-
-    /* initialize */
-    int total_length = 0;
-    for (idx = 0; idx < offset[0]; ++idx) {
-        total_length += offset[idx * 2 + 2] - offset[idx * 2 + 1];
-    }
-
-    block_size = 0;
-    startW = endP;
-    inc = 1;
-    for (idx = 0; idx < offset[0]; ++idx) {
-        length = offset[idx * 2 + 2] - offset[idx * 2 + 1];
-        if (block_size + length >= total_length / 2) {
-            length = total_length / 2 - block_size;
-        }
-        /* initialize x */
-        start[0] = offset[idx * 2 + 1];
-        end[0] = start[0] + length;
-        start[1] = startW + block_size;
-        end[1] = start[1] + length;
-        ops_gcg->MultiVecAxpby(1.0, ritz_vec, 0.0, V, start, end, ops_gcg);
-        /* set b, b = (lambda+sigma) Bx */
-        start[0] = offset[idx * 2 + 1];
-        end[0] = start[0] + length;
-        start[1] = offset[1] + block_size;
-        end[1] = start[1] + length;
-        ops_gcg->MatDotMultiVec(B, V, b, start, end, ops_gcg);
-
-        int i;
-        /* shift eigenvalues with sigma */
-        for (i = start[0]; i < end[0]; ++i)
-            ss_eval[i] += sigma;
-        ops_gcg->MultiVecLinearComb(NULL, b, 0, start, end,
-                                    NULL, 0, ss_eval + start[0], 1, ops_gcg);
-        dcopy(&length, ss_eval + start[0], &inc, destin, &inc);
-        /* recover eigenvalues */
-        for (i = start[0]; i < end[0]; ++i)
-            ss_eval[i] -= sigma;
-
-        destin += length;
-        block_size += length;
-        if (block_size >= total_length / 2)
-            break;
-    }
-    /* solve x */
-    start[0] = offset[1];
-    end[0] = start[0] + block_size;
-    start[1] = startW;
-    end[1] = start[1] + block_size;
-#if TIME_GCG
-    time_gcg.linsol_time -= ops_gcg->GetWtime();
-#endif
-
-#if DEBUG
-    ops_gcg->Printf("b\n");
-    ops_gcg->MultiVecView(b, offset[1], offset[1] + (total_length / 2), ops_gcg);
-#endif
-
-    // 非精确求解线性方程组
-    ops_gcg->MultiLinearSolver(A, b, V, start, end, ops_gcg);
-#if TIME_GCG
-    time_gcg.linsol_time += ops_gcg->GetWtime();
-#endif
-    endW = startW + block_size;
-
-    /* initialize x */
-    start[0] = startW;
-    end[0] = start[0] + block_size;
-    start[1] = endW;
-    end[1] = start[1] + block_size;
-    ops_gcg->MultiVecAxpby(1.0, V, 0.0, V, start, end, ops_gcg);
-
-/* 是否按照原有 右端项 进行二次求解 */
-#if 0
-	/* set b, b = (lambda+sigma) Bx, where x is new */
-	start[0] = endW     ; end[0] = start[0]+block_size;
-	start[1] = offset[1]; end[1] = start[1]+block_size;
-	ops_gcg->MatDotMultiVec(B,V,b,start,end,ops_gcg);
-	block_size = 0; inc = 1; 
-	for (idx = 0; idx < offset[0]; ++idx) {
-		length   = offset[idx*2+2]-offset[idx*2+1];
-		if (block_size+length >= total_length/2) {
-			length = total_length/2 - block_size;
-		}
-		start[0] = offset[idx*2+1]     ; end[0] = start[0]+length;
-		start[1] = offset[1]+block_size; end[1] = start[1]+length;
-		
-		int i;
-		/* shift eigenvalues with sigma */
-		for (i = start[0]; i < end[0]; ++i) ss_eval[i] += sigma;
-		ops_gcg->MultiVecLinearComb(NULL,b,0,start,end,
-				NULL,0,ss_eval+start[0],1,ops_gcg);			
-		dcopy(&length,ss_eval+start[0],&inc,destin,&inc);
-		/* recover eigenvalues */
-		for (i = start[0]; i < end[0]; ++i) ss_eval[i] -= sigma;
-		
-		destin += length;
-		block_size += length;
-		if (block_size >= total_length/2) break;
-	}
-#else
-    /* 这种情况下, 在MatDotMultiVecShift中, 右端项会做为临时空间, 改变了值 */
-    if (sigma != 0.0 && B != NULL && ops_gcg->MatAxpby == NULL) {
-        block_size = 0;
-        inc = 1;
-        for (idx = 0; idx < offset[0]; ++idx) {
-            length = offset[idx * 2 + 2] - offset[idx * 2 + 1];
-            if (block_size + length >= total_length / 2) {
-                length = total_length / 2 - block_size;
-            }
-            start[0] = offset[idx * 2 + 1];
-            end[0] = start[0] + length;
-            start[1] = offset[1] + block_size;
-            end[1] = start[1] + length;
-            ops_gcg->MatDotMultiVec(B, V, b, start, end, ops_gcg);
-
-            int i;
-            /* shift eigenvalues with sigma */
-            for (i = start[0]; i < end[0]; ++i)
-                ss_eval[i] += sigma;
-            ops_gcg->MultiVecLinearComb(NULL, b, 0, start, end,
-                                        NULL, 0, ss_eval + start[0], 1, ops_gcg);
-            dcopy(&length, ss_eval + start[0], &inc, destin, &inc);
-            /* recover eigenvalues */
-            for (i = start[0]; i < end[0]; ++i)
-                ss_eval[i] -= sigma;
-
-            destin += length;
-            block_size += length;
-            if (block_size >= total_length / 2)
-                break;
-        }
-    }
-#endif
-    /* solve x */
-    start[0] = offset[1];
-    end[0] = start[0] + block_size;
-    start[1] = endW;
-    end[1] = start[1] + block_size;
-#if DEBUG
-    ops_gcg->Printf("V\n");
-    ops_gcg->MultiVecView(V, startW, startW + 2 * (total_length / 2), ops_gcg);
-    ops_gcg->Printf("b\n");
-    ops_gcg->MultiVecView(b, offset[1], offset[1] + (total_length / 2), ops_gcg);
-#endif
-
-#if TIME_GCG
-    time_gcg.linsol_time -= ops_gcg->GetWtime();
-#endif
-    ops_gcg->MultiLinearSolver(A, b, V, start, end, ops_gcg);
-#if TIME_GCG
-    time_gcg.linsol_time += ops_gcg->GetWtime();
-#endif
-    endW += block_size;
-    assert(endW - startW <= total_length);
-
-    ops_gcg->MultiLinearSolver = lin_sol;
-    ops_gcg->multi_linear_solver_workspace = ws;
-
-    /* 20210628 recover A */
-    if (sigma != 0.0 && B != NULL && ops_gcg->MatAxpby != NULL) {
-        /* A = -sigma B + A */
-        ops_gcg->MatAxpby(-sigma, B, 1.0, A, ops_gcg);
-    }
-
-#if DEBUG
-    ops_gcg->Printf("V\n");
-    ops_gcg->MultiVecView(V, startW, endW, ops_gcg);
-#endif
-
-    /* orth W in V */
-    if (0 == strcmp("mgs", gcg_solver->compW_orth_method))
-        MultiVecOrthSetup_ModifiedGramSchmidt(
-            gcg_solver->compW_orth_block_size,
-            gcg_solver->compW_orth_max_reorth,
-            gcg_solver->compW_orth_zero_tol,
-            mv_ws[0], dbl_ws, ops_gcg);
-    else if (0 == strcmp("bgs", gcg_solver->compW_orth_method))
-        MultiVecOrthSetup_BinaryGramSchmidt(
-            gcg_solver->compW_orth_block_size,
-            gcg_solver->compW_orth_max_reorth,
-            gcg_solver->compW_orth_zero_tol,
-            mv_ws[0], dbl_ws, ops_gcg);
-    else
-        MultiVecOrthSetup_ModifiedGramSchmidt(
-            gcg_solver->compW_orth_block_size,
-            gcg_solver->compW_orth_max_reorth,
-            gcg_solver->compW_orth_zero_tol,
-            mv_ws[0], dbl_ws, ops_gcg);
-
-    ops_gcg->MultiVecOrth(V, startW, &endW, B, ops_gcg);
-    sizeW = endW - startW;
-
-#if TIME_GCG
-    time_gcg.compW_time += ops_gcg->GetWtime();
-#endif
-    return;
-}
-
 /**
  * @brief 调用 Rayleigh-Ritz过程 求解子空间投影问题： V^H A V C = V^H B V C \Lambda
  * 公式中C：特征向量矩阵, \Lambda: 由特征值形成的对角线矩阵
@@ -1931,9 +1680,11 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 
     // 将未求解的特征值设置为已求解的最后一个特征值的值(特征值是从小到大求解的)
     // 第一轮求解时，sizeC为0，因此求解出来的个数为sizeV = sizeX = nevInit
-    for (idx = sizeV; idx < (nevMax + 2 * block_size); ++idx) {
-        ss_eval[idx] = ss_eval[sizeV - 1];
-    }
+    // 该代码在求解区间特征值时没有作用，因此注释掉 start
+    // for (idx = sizeV; idx < (nevMax + 2 * block_size); ++idx) {
+    //     ss_eval[idx] = ss_eval[sizeV - 1];
+    // }
+    // 该代码在求解区间特征值时没有作用，因此注释掉 end
     /* 更新 ss_mat ss_evec */
     // sizeC变了(收敛的特征向量多了)，因此将其余变量的内存空间依次后移，此时C为0，sizeV = sizeX = nevInit
     ss_matA = ss_diag + (sizeV - sizeC);
@@ -2034,11 +1785,7 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 #if DEBUG
         ops_gcg->MultiVecView(V, 0, sizeX, ops_gcg);
 #endif
-        if (gcg_solver->compW_cg_order != 1) {
-            ComputeW12(V, A, B, ss_eval, ritz_vec, offsetW); /* update sizeW startW endW */
-        } else {
-            ComputeW(V, A, B, ss_eval, ritz_vec, offsetW); /* update sizeW startW endW */
-        }
+        ComputeW(V, A, B, ss_eval, ritz_vec, offsetW); /* update sizeW startW endW */
         ptr_tmp = offsetP;
         offsetP = offsetW;
         offsetW = ptr_tmp;
@@ -2078,9 +1825,11 @@ static void GCG(void *A, void *B, double *eval, void **evec,
         ComputeRayleighRitz(ss_matA, ss_eval, ss_evec,
                             gcg_solver->compRR_tol, *nevConv, ss_diag, A, V); /* update sizeC startN endN sizeN */
 
-        for (idx = sizeV; idx < (nevMax + 2 * block_size); ++idx) {
-            ss_eval[idx] = ss_eval[sizeV - 1];
-        }
+        // // 该代码在求解区间特征值时没有作用，因此注释掉 start
+        // for (idx = sizeV; idx < (nevMax + 2 * block_size); ++idx) {
+        //     ss_eval[idx] = ss_eval[sizeV - 1];
+        // }
+        // // 该代码在求解区间特征值时没有作用，因此注释掉 end
         ss_matA = ss_diag + (sizeV - sizeC);
         ss_evec = ss_matA + (sizeV - sizeC) * (sizeV - sizeC);
 
