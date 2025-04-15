@@ -32,7 +32,7 @@ GcgeErrCode CountEigenNum::countEigenNum(void *A, void *B, double a, double b, i
     
     // 计算A - a * B 惯性指数
     MatGetInertia(chol_AaB, &numEigen, &nzero, &npos); 
-    printf("    nneg: %d, nzero:%d, npos: %d\n", numEigen, nzero, npos);
+    //printf("    nneg: %d, nzero:%d, npos: %d\n", numEigen, nzero, npos);
 
     /*-----------------------------------------------------------------------------------*/
 
@@ -51,12 +51,13 @@ GcgeErrCode CountEigenNum::countEigenNum(void *A, void *B, double a, double b, i
 
     // 计算A - b * B 惯性指数
     MatGetInertia(chol_AbB, &nneg, &nzero, &npos); 
-    printf("    nneg: %d, nzero:%d, npos: %d\n", nneg, nzero, npos);
+    //printf("    nneg: %d, nzero:%d, npos: %d\n", nneg, nzero, npos);
 
     // 区间内特征值个数
     numEigen = nneg - numEigen;
-    printf("    numEigen: %d\n", numEigen);
-
+    //printf("[%lg, %lg]    numEigen: %d\n", numEigen);
+    PetscPrintf(PETSC_COMM_WORLD, "The number of eigenvalues in [a, b] = [%lg, %lg] is: %d \n", a, b, numEigen);
+    
     ISDestroy(&row);
     ISDestroy(&col);
     MatDestroy(&A_aB);

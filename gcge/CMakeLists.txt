@@ -63,9 +63,13 @@ target_link_libraries(GCGE PRIVATE
 if(UNIX)
     target_link_libraries(GCGE PRIVATE 
         m                   # petsc需要的库
-        mpifort
-        mpi
+        #mpifort            # 新编译mpich --enable-fortran=all FC=gfortran
+        #mpi
         gcc_s
+        dmumps              # petsc支持mumps，新增的库
+        mumps_common
+        scalapack
+        pord
     )
 endif()
 

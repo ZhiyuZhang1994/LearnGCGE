@@ -15,7 +15,7 @@
 
 #define TIME_BPCG 0
 #define TIME_BAMG 0
-#define LINEAR_SOLVER_METHOD 2    //computeW中Ax=B求解方式 O:blockPCG, 1:petsc KSPMINRES, 2:petsc CholeskySolve
+#define LINEAR_SOLVER_METHOD 1    //computeW中Ax=B求解方式 O:blockPCG, 1:petsc KSPMINRES, 2:petsc CholeskySolve,  3:Mumps CholeskySolve
 
 typedef struct TimeBlockPCG_ {
     double allreduce_time;
@@ -561,6 +561,7 @@ void PetscKSPMINRES(void *mat, void **mv_b, void **mv_x, int *start_bx, int *end
  */
 void PetscCholeskySolve(void *mat, void **mv_b, void **mv_x, int *start_bx, int *end_bx, struct OPS_ *ops) {
     // LU分解
+    printf("---Petsc computeW---\n");
     Mat A_bB_AIJ;   // 保存 A - b * B 且转数据格式
     Mat chol_AbB;   // cholesky分解后的矩阵
 
@@ -599,6 +600,70 @@ void PetscCholeskySolve(void *mat, void **mv_b, void **mv_x, int *start_bx, int 
     VecDestroy(&ksp_x);
     VecDestroy(&ksp_b);
     MatDestroy(&A_bB_AIJ);
+    MatDestroy(&chol_AbB);
+}
+
+/*
+ * @brief 使用Petsc + Mumps的Cholesky分解 直接法求解线性系统Ax=B(右端项是多列的)。
+ * 需循环求解每个列向量
+ * 
+ * @param mat 指向线性系统中的矩阵的指针。
+ * @param mv_b 指向右端项向量的指针。
+ * @param mv_x 指向解向量的指针。
+ * @param start_bx 指向块向量起始索引的指针。
+ * @param end_bx 指向块向量结束索引的指针。
+ * @param ops 指向 OPS_ 结构的指针，该结构包含操作函数指针
+ */
+void MumpsCholeskySolve(void *mat, void **mv_b, void **mv_x, int *start_bx, int *end_bx, struct OPS_ *ops) {
+    // LU分解
+    printf("---MUMPS computeW---\n");
+    Mat chol_AbB;   // cholesky分解后的矩阵
+
+    IS row, col;    // 用于LU分解排序
+    MatFactorInfo info;
+    MatFactorInfoInitialize(&info); 
+
+    MatGetFactor(mat, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &chol_AbB);
+// #define MATORDERINGNATURAL       "natural"
+// #define MATORDERINGND            "nd"
+// #define MATORDERING1WD           "1wd"
+// #define MATORDERINGRCM           "rcm"
+// #define MATORDERINGQMD           "qmd"
+// #define MATORDERINGROWLENGTH     "rowlength"
+// #define MATORDERINGWBM           "wbm"
+// #define MATORDERINGSPECTRAL      "spectral"
+// #define MATORDERINGAMD           "amd"           /* only works if UMFPACK is installed with PETSc */
+// #define MATORDERINGMETISND       "metisnd"       /* only works if METIS is installed with PETSc */
+// #define MATORDERINGNATURAL_OR_ND "natural_or_nd" /* special coase used for Cholesky and ICC, allows ND when AIJ matrix is used but Natural when SBAIJ is used */
+// #define MATORDERINGEXTERNAL      "external" 
+    MatGetOrdering(mat, MATORDERINGEXTERNAL, &row, &col);        // 矩阵排序  MATORDERINGRCM
+                                
+    MatCholeskyFactorSymbolic(chol_AbB, mat, row, &info);  // 符号分析
+    MatCholeskyFactorNumeric(chol_AbB, mat, &info);        // 数值分解 
+
+    // 使用LU分解结果，进行Ax=B求解
+    Vec ksp_x;  // 临时存放Ax=B中的每列x
+    Vec ksp_b;
+    VecCreate(PETSC_COMM_WORLD, &ksp_b);
+    VecCreate(PETSC_COMM_WORLD, &ksp_x);
+
+    int length = end_bx[1] - start_bx[1];       // 要求解的数目
+    for (PetscInt i = 0; i < length; i++) {     // todo 多次调用MatSolve(), 可改为MatMatSolve() ?
+        BVGetColumn((BV)mv_b, start_bx[0] + i, &ksp_b);          
+        BVGetColumn((BV)mv_x, start_bx[1] + i, &ksp_x);         // 获取V的第start_bx[1] + i列写指针​​，允许直接修改该列数据
+        PetscErrorCode err = MatSolve(chol_AbB, ksp_b, ksp_x);  // 基于LU分解的Ax=b求解
+        if (err) {
+            printf("MatSolve error: %d\n", err);
+            exit(1);
+        }
+        BVRestoreColumn((BV)mv_b, start_bx[0] + i, &ksp_b);   // 释放指针ksp_b
+        BVRestoreColumn((BV)mv_x, start_bx[1] + i, &ksp_x);   // 释放指针ksp_x     
+    }
+    // 释放资源
+    ISDestroy(&row);
+    ISDestroy(&col);
+    VecDestroy(&ksp_x);
+    VecDestroy(&ksp_b);
     MatDestroy(&chol_AbB);
 }
 
@@ -653,6 +718,9 @@ void MultiLinearSolverSetup_BlockPCG(int max_iter, double rate, double tol,
             break;
         case 2:
             ops->MultiLinearSolver = PetscCholeskySolve;
+            break;
+        case 3:
+            ops->MultiLinearSolver = MumpsCholeskySolve;
             break;
         default:
             ops->MultiLinearSolver = BlockPCG;
