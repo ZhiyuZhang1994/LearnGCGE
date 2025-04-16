@@ -49,7 +49,7 @@ make
     wget https://www.mpich.org/static/downloads/4.2.3/mpich-4.2.3.tar.gz
     tar -xzf mpich-4.2.3.tar.gz
     cd mpich-4.2.3
-    ./configure --prefix=$HOME/deps/mpich-4.2.3 # --prefix=后面是安装路径，可不填则默认安装到系统路径
+    ./configure --enable-fortran=all FC=gfortran --prefix=$HOME/deps/mpich-4.2.3 # --prefix=后面是安装路径，可不填则默认安装到系统路径
     make -j4
     make install
     echo 'export PATH=$HOME/deps/mpich-4.2.3/bin:$PATH' >> ~/.bashrc # 路径要根据自己的安装路径而定
