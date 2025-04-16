@@ -41,8 +41,8 @@ static int sizeC, sizeX, sizeV, endX;
 static void **mv_ws[3];
 static double *dbl_ws;
 static int *int_ws;
-static struct OPS_ *ops_gcg;
-static struct GCGSolver_ *gcg_solver;
+static struct OPS_ *ops_gcg; // 上下文空间
+struct GCGSolver_ *gcg_solver;
 
 #if 0
 static double tmp_sigma[200];
@@ -752,6 +752,7 @@ static void ComputeW(void **V, void *A, void *B,
         // 配置BlockPCG求解器参数
         if (sigma != 0.0 && B != NULL && ops_gcg->MatAxpby != NULL) {
             ops_gcg->MatAxpby(sigma, B, 1.0, A, ops_gcg); // 构造线性方程组系数矩阵  /* 20210628 A = sigma B + A */
+            gcg_solver->shiftChangedFlag = 1;
             // 没有给预条件，给了预条件会不会收敛更快?
             MultiLinearSolverSetup_BlockPCG(
                 gcg_solver->compW_cg_max_iter,
@@ -761,6 +762,7 @@ static void ComputeW(void **V, void *A, void *B,
                 mv_ws, dbl_ws, int_ws, NULL, NULL, ops_gcg);
         } else {
 #endif
+            gcg_solver->shiftChangedFlag = 0;
             MultiLinearSolverSetup_BlockPCG(
                 gcg_solver->compW_cg_max_iter,
                 gcg_solver->compW_cg_rate,

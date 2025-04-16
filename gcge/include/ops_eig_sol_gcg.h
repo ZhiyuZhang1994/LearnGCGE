@@ -56,7 +56,8 @@ typedef struct GCGSolver_ {
 	double compW_cg_tol       ; 
 	char   compW_cg_tol_type[8]; // 计算W是用的CG法中收敛容差的判断方式(abs or rel)
 	int  compW_cg_auto_shift  ; // 是否自动按照内置公式计算shift
-	double compW_cg_shift;      // 王博士认为这个成员变量是多余的，没有实际作用
+	double compW_cg_shift;      // 1) 此变量作为徐博士multishift算法的shift变量; 此前该变量无效: 王博士认为这个成员变量是多余的，没有实际作用
+    int shiftChangedFlag; // shift是否发生变化的标志: 1--变化; 0--没变化 默认为1
 	int  compW_cg_order       ; // 用于是否调用ComputeW12（冗余的函数）的判断，可删去
 
 	int    compRR_min_num     ; 
