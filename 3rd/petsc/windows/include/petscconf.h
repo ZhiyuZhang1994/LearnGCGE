@@ -12,7 +12,7 @@
 #define PETSC_DEPRECATED_MACRO_BASE_(why) _Pragma(#why)
 #define PETSC_DEPRECATED_OBJECT_BASE(string_literal_why) __attribute__((deprecated(string_literal_why)))
 #define PETSC_DEPRECATED_TYPEDEF_BASE(string_literal_why) __attribute__((deprecated(string_literal_why)))
-#define PETSC_DIR "/d/installedCode/petsc"
+#define PETSC_DIR "/d/installedCode/petsc_mumps"
 #define PETSC_DIR_SEPARATOR '/'
 #define PETSC_FORTRAN_CHARLEN_T size_t
 #define PETSC_FORTRAN_TYPE_INITIALIZE  = -2
@@ -85,18 +85,20 @@
 #define PETSC_HAVE_MPI_WIN_CREATE 1
 #define PETSC_HAVE_MSMPI 1
 #define PETSC_HAVE_MSMPI_VERSION 0x100
+#define PETSC_HAVE_MUMPS 1
 #define PETSC_HAVE_NANOSLEEP 1
 #define PETSC_HAVE_NO_FINITE_MATH_ONLY 1
 #define PETSC_HAVE_OPENBLAS_SET_NUM_THREADS 1
 #define PETSC_HAVE_OPENMP 1
 #define PETSC_HAVE_O_BINARY 1
-#define PETSC_HAVE_PACKAGES ":blaslapack:mathlib:mpi:openmp:openmp:pthread:regex:"
+#define PETSC_HAVE_PACKAGES ":blaslapack:mathlib:mpi:mumps:openmp:openmp:pthread:regex:scalapack:"
 #define PETSC_HAVE_POPEN 1
 #define PETSC_HAVE_PTHREAD 1
 #define PETSC_HAVE_PTHREAD_MUTEX 1
 #define PETSC_HAVE_RAND 1
 #define PETSC_HAVE_REAL___FLOAT128 1
 #define PETSC_HAVE_REGEX 1
+#define PETSC_HAVE_SCALAPACK 1
 #define PETSC_HAVE_SETJMP_H 1
 #define PETSC_HAVE_SETLASTERROR 1
 #define PETSC_HAVE_SLEEP 1
@@ -136,7 +138,7 @@
 #define PETSC_IS_COLORING_VALUE_TYPE short
 #define PETSC_IS_COLORING_VALUE_TYPE_F integer2
 #define PETSC_LEVEL1_DCACHE_LINESIZE 32
-#define PETSC_LIB_DIR "/d/installedCode/petsc/lib"
+#define PETSC_LIB_DIR "/d/installedCode/petsc_mumps/lib"
 #define PETSC_MAX_PATH_LEN 260
 #define PETSC_MEMALIGN 16
 #define PETSC_MISSING_GETLINE 1
