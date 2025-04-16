@@ -15,7 +15,7 @@
 
 #define TIME_BPCG 0
 #define TIME_BAMG 0
-#define LINEAR_SOLVER_METHOD 1    //computeW中Ax=B求解方式 O:blockPCG, 1:petsc KSPMINRES, 2:petsc CholeskySolve,  3:Mumps CholeskySolve
+#define LINEAR_SOLVER_METHOD 3    //computeW中Ax=B求解方式 O:blockPCG, 1:petsc KSPMINRES, 2:petsc CholeskySolve,  3:Mumps CholeskySolve
 
 typedef struct TimeBlockPCG_ {
     double allreduce_time;
