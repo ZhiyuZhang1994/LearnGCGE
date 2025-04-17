@@ -73,7 +73,10 @@ PetscErrorCode MatCreateFromMTX(Mat *A, const char *filein, PetscBool aijonly) {
     PetscCall(MatCreate(PETSC_COMM_WORLD, A));
     PetscCall(MatSetSizes(*A, mlocal, PETSC_DECIDE, M, N));
     // MATSEQSBAIJ或MATMPISBAIJ 设置后，只需要填充将上三角矩阵，petsc自动补齐下三角矩阵
-    PetscCall(MatSetType(*A, MATMPISBAIJ));
+    PetscCall(MatSetType(*A, MATSBAIJ));
+    // PetscCall(MatSetType(*A, MATAIJ));
+    // 设置对称属性
+    // PetscCall(MatSetOption(*A, MAT_SYMMETRIC, PETSC_TRUE));
     // PetscCall(MatSetFromOptions(*A));
     PetscCall(MatSetUp(*A));
 
@@ -82,7 +85,7 @@ PetscErrorCode MatCreateFromMTX(Mat *A, const char *filein, PetscBool aijonly) {
         if (ja[i] >= mstart && ja[i] < mend) {
             PetscCall(MatSetValues(*A, 1, &ja[i], 1, &ia[i], &val[i], INSERT_VALUES));
             // if (symmetric && ia[i] != ja[i]) {
-            // PetscCall(MatSetValues(*A, 1, &ja[i], 1, &ia[i], &val[i], INSERT_VALUES));
+            //     PetscCall(MatSetValues(*A, 1, &ia[i], 1, &ja[i], &val[i], INSERT_VALUES));
             // }
         }
     }

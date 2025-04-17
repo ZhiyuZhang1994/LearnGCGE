@@ -640,12 +640,16 @@ ComputeWData computeWData = {
  */
 void MumpsCholeskySolve(void *mat, void **mv_b, void **mv_x, int *start_bx, int *end_bx, struct OPS_ *ops) {
     if (computeWData.chol_AbB == NULL) { // 如果没有分解过: 此部分逻辑之后不需要，因为求区间特征值个数时要分解
-        ops->Printf("zzy init LU\n");
+        ops->Printf("init LU\n");
         MatFactorInfo info; // 定义矩阵分解信息(输入输出信息都有)
         MatFactorInfoInitialize(&info); // 初始化矩阵分解信息
         // 获取矩阵 mat 对应的 Cholesky 分解操作的矩阵句柄 chol_AbB
         // 会根据输入的矩阵类型、求解器类型、分解方法类型(MatFactorType)来判断是否可用(有些求解其不支持一些分解方法)，不可用返回NULL
-        MatGetFactor(mat, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &computeWData.chol_AbB);
+        PetscErrorCode err = MatGetFactor((Mat)mat, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &computeWData.chol_AbB);
+        if (err) {
+            ops->Printf("MatGetFactor error: %d\n", err);
+            exit(1);
+        }
         // #define MATORDERINGNATURAL       "natural"
         // #define MATORDERINGND            "nd"
         // #define MATORDERING1WD           "1wd"
@@ -659,14 +663,14 @@ void MumpsCholeskySolve(void *mat, void **mv_b, void **mv_x, int *start_bx, int 
         // #define MATORDERINGNATURAL_OR_ND "natural_or_nd" /* special coase used for Cholesky and ICC, allows ND when AIJ matrix is used but Natural when SBAIJ is used */
         // #define MATORDERINGEXTERNAL      "external" 
         // 矩阵重排序: 可以减少分解时的非零元填充量，并提高数值稳定性
-        MatGetOrdering(mat, MATORDERINGEXTERNAL, &computeWData.row, &computeWData.col);        // 矩阵排序  使用mumps内部默认排序方法MATORDERINGEXTERNAL
+        MatGetOrdering((Mat)mat, MATORDERINGEXTERNAL, &computeWData.row, &computeWData.col);        // 矩阵排序  使用mumps内部默认排序方法MATORDERINGEXTERNAL
         // 符号分析: 先根据矩阵的非零结构和排序信息，确定分解矩阵(如 L)的非零结构。
-        MatCholeskyFactorSymbolic(computeWData.chol_AbB, mat, computeWData.row, &info);
+        MatCholeskyFactorSymbolic(computeWData.chol_AbB, (Mat)mat, computeWData.row, &info);
         // 数值分解: 根据符号分析的结果，实际计算出 L 矩阵的数值内容。
-        MatCholeskyFactorNumeric(computeWData.chol_AbB, mat, &info);
+        MatCholeskyFactorNumeric(computeWData.chol_AbB, (Mat)mat, &info);
     }
     if (gcg_solver->shiftChangedFlag) { // 如果求解器的shift发生了变化, 即重新进行矩阵分解
-        ops->Printf("zzy LU\n");
+        ops->Printf("re LU\n");
         // 1、释放之前分解的数据
         ISDestroy(&computeWData.row);
         ISDestroy(&computeWData.col);
@@ -674,36 +678,67 @@ void MumpsCholeskySolve(void *mat, void **mv_b, void **mv_x, int *start_bx, int 
         // 2、重新分解
         MatFactorInfo info;
         MatFactorInfoInitialize(&info);
-        MatGetFactor(mat, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &computeWData.chol_AbB);
-        MatGetOrdering(mat, MATORDERINGEXTERNAL, &computeWData.row, &computeWData.col);
-        MatCholeskyFactorSymbolic(computeWData.chol_AbB, mat, computeWData.row, &info);
-        MatCholeskyFactorNumeric(computeWData.chol_AbB, mat, &info);
+        MatGetFactor((Mat)mat, MATSOLVERMUMPS, MAT_FACTOR_CHOLESKY, &computeWData.chol_AbB);
+        MatGetOrdering((Mat)mat, MATORDERINGEXTERNAL, &computeWData.row, &computeWData.col);
+        MatCholeskyFactorSymbolic(computeWData.chol_AbB, (Mat)mat, computeWData.row, &info);
+        MatCholeskyFactorNumeric(computeWData.chol_AbB, (Mat)mat, &info);
     } else {
-        ops->Printf("zzy no LU\n");
+        ops->Printf("no LU\n");
     }
     // LU分解
     printf("---MUMPS computeW---\n");
-    // 使用LU分解结果，进行Ax=B求解
-    Vec ksp_x;  // 临时存放Ax=B中的每列x
-    Vec ksp_b;
-    VecCreate(PETSC_COMM_WORLD, &ksp_b);
-    VecCreate(PETSC_COMM_WORLD, &ksp_x);
+ 
+    // // 可行方案一
+    // {
+    //     // 使用LU分解结果，进行Ax=B求解
+    //     Vec ksp_x;  // 临时存放Ax=B中的每列x
+    //     Vec ksp_b;
+    //     // printf("---BVView mv_x before--\n");
+    //     // BVView((BV)mv_x, PETSC_VIEWER_STDOUT_WORLD);
+    //     int length = end_bx[1] - start_bx[1];       // 要求解的数目
+    //     for (PetscInt i = 0; i < length; i++) {     // todo 多次调用MatSolve(), 可改为MatMatSolve() ?
+    //         BVGetColumn((BV)mv_b, start_bx[0] + i, &ksp_b);          
+    //         BVGetColumn((BV)mv_x, start_bx[1] + i, &ksp_x);         // 获取V的第start_bx[1] + i列写指针​​，允许直接修改该列数据
+    //         PetscErrorCode err = MatSolve(computeWData.chol_AbB, ksp_b, ksp_x);  // 基于LU分解的Ax=b求解
+    //         if (err) {
+    //             printf("MatSolve error: %d\n", err);
+    //             exit(1);
+    //         }
+    //         BVRestoreColumn((BV)mv_b, start_bx[0] + i, &ksp_b);   // 释放指针ksp_b
+    //         BVRestoreColumn((BV)mv_x, start_bx[1] + i, &ksp_x);   // 释放指针ksp_x
+    //     }
+    //     // printf("---BVView mv_x after--\n");
+    //     // BVView((BV)mv_x, PETSC_VIEWER_STDOUT_WORLD);
+    // }
 
-    int length = end_bx[1] - start_bx[1];       // 要求解的数目
-    for (PetscInt i = 0; i < length; i++) {     // todo 多次调用MatSolve(), 可改为MatMatSolve() ?
-        BVGetColumn((BV)mv_b, start_bx[0] + i, &ksp_b);          
-        BVGetColumn((BV)mv_x, start_bx[1] + i, &ksp_x);         // 获取V的第start_bx[1] + i列写指针​​，允许直接修改该列数据
-        PetscErrorCode err = MatSolve(computeWData.chol_AbB, ksp_b, ksp_x);  // 基于LU分解的Ax=b求解
-        if (err) {
-            printf("MatSolve error: %d\n", err);
-            exit(1);
-        }
-        BVRestoreColumn((BV)mv_b, start_bx[0] + i, &ksp_b);   // 释放指针ksp_b
-        BVRestoreColumn((BV)mv_x, start_bx[1] + i, &ksp_x);   // 释放指针ksp_x
+    // 调试方案二
+    {
+        Mat Btemp, B, Xtemp, X;
+        BVSetActiveColumns((BV)mv_b, start_bx[0], end_bx[0]);
+        BVGetMat((BV)mv_b, &Btemp);
+        // MatConvert(Btemp, MATDENSE, MAT_INITIAL_MATRIX,&B);
+        MatDuplicate(Btemp, MAT_COPY_VALUES, &B);
+        // ops->Printf("bbb  before \n");
+        // MatView(B, PETSC_VIEWER_STDOUT_WORLD);
+    
+        BVSetActiveColumns((BV)mv_x, start_bx[1], end_bx[1]);
+        BVGetMat((BV)mv_x, &Xtemp);
+        // MatConvert(Xtemp, MATDENSE, MAT_INITIAL_MATRIX,&X);
+        MatConvert(Xtemp, MATDENSE, MAT_INITIAL_MATRIX,&X);
+        // ops->Printf("xxx  before \n");
+        // MatView(X, PETSC_VIEWER_STDOUT_WORLD);
+    
+        MatMatSolve(computeWData.chol_AbB, B, X);
+        // ops->Printf("xxx  ans \n");
+        // MatView(X, PETSC_VIEWER_STDOUT_WORLD);
+        MatConvert(X,MATDENSE,MAT_REUSE_MATRIX,&Xtemp);
+        // ops->Printf("Xtemp  ans \n");
+        // MatView(Xtemp, PETSC_VIEWER_STDOUT_WORLD);
+        BVRestoreMat((BV)mv_b, &Btemp);
+        BVRestoreMat((BV)mv_x, &Xtemp);
+        MatDestroy(&B);
+        MatDestroy(&X);
     }
-    // 释放资源
-    VecDestroy(&ksp_x);
-    VecDestroy(&ksp_b);
 }
 
 /**
